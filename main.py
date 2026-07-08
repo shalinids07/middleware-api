@@ -74,11 +74,18 @@ async def request_context_and_rate_limit(request: Request, call_next):
 # -----------------------------
 @app.get("/ping")
 async def ping(request: Request):
-    return {
-        "email": EMAIL,
-        "request_id": request.state.request_id
-    }
 
+    request_id = request.state.request_id
+
+    return JSONResponse(
+        content={
+            "email": EMAIL,
+            "request_id": request_id
+        },
+        headers={
+            "X-Request-ID": request_id
+        }
+    )
 
 # -----------------------------
 # Root
