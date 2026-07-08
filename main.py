@@ -35,16 +35,21 @@ app.add_middleware(
 @app.middleware("http")
 async def request_context_and_rate_limit(request: Request, call_next):
 
-    # ---------- Rate Limit ----------
+    # Don't rate-limit CORS preflight requests
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     client_id = request.headers.get("X-Client-Id", "anonymous")
 
     now = time.time()
 
     history = clients[client_id]
 
-    while history and now - history[0] >= WINDOW:
+    # Remove expired requests
+    while history and (now - history[0]) > WINDOW:
         history.popleft()
 
+    # Block after 15 requests
     if len(history) >= RATE_LIMIT:
         return JSONResponse(
             status_code=429,
@@ -53,21 +58,16 @@ async def request_context_and_rate_limit(request: Request, call_next):
 
     history.append(now)
 
-    # ---------- Request ID ----------
     request_id = request.headers.get("X-Request-ID")
-
     if not request_id:
         request_id = str(uuid.uuid4())
 
     request.state.request_id = request_id
 
     response = await call_next(request)
-
-    # Echo request id in RESPONSE HEADER
     response.headers["X-Request-ID"] = request_id
 
     return response
-
 
 # -----------------------------
 # Ping Endpoint
