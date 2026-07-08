@@ -25,8 +25,11 @@ app.add_middleware(
     ],
     allow_credentials=False,
     allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["X-Request-ID"],
+allow_headers=[
+    "X-Client-Id",
+    "X-Request-ID",
+    "Content-Type"
+],    expose_headers=["X-Request-ID"],
 )
 
 # -----------------------------
