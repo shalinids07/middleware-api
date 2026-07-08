@@ -38,40 +38,35 @@ allow_headers=[
 @app.middleware("http")
 async def request_context_and_rate_limit(request: Request, call_next):
 
-    # Don't rate-limit CORS preflight requests
+    # Skip OPTIONS requests
     if request.method == "OPTIONS":
         return await call_next(request)
 
-    client_id = request.headers.get("X-Client-Id", "anonymous")
-
-    now = time.time()
-
-    history = clients[client_id]
-
-    # Remove expired requests
-    while history and (now - history[0]) > WINDOW:
-        history.popleft()
-
-    # Block after 15 requests
-    if len(history) >= RATE_LIMIT:
-        return JSONResponse(
-            status_code=429,
-            content={"detail": "Rate limit exceeded"}
-        )
-
-    history.append(now)
-
-    request_id = request.headers.get("X-Request-ID")
-    if not request_id:
-        request_id = str(uuid.uuid4())
-
+    # Request ID first
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
     request.state.request_id = request_id
+
+    # Rate limiting only for /ping
+    if request.url.path == "/ping":
+        client_id = request.headers.get("X-Client-Id", "anonymous")
+        now = time.time()
+        history = clients[client_id]
+
+        while history and now - history[0] > WINDOW:
+            history.popleft()
+
+        if len(history) >= RATE_LIMIT:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded"},
+                headers={"X-Request-ID": request_id},
+            )
+
+        history.append(now)
 
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
-
     return response
-
 # -----------------------------
 # Ping Endpoint
 # -----------------------------
